@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..core.models import TokenUsage
 from ..llm import LLMClient, Message
-from ..llm.prompts import CLOUD_SYSTEM_PROMPT, cloud_prompt
 from ..skills import ProgressiveSkillTree
+from ..utils.models import TokenUsage
+from .prompts import CLOUD_SYSTEM_PROMPT, cloud_prompt
 from .trie import TrajectoryTrie
 
 

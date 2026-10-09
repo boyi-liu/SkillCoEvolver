@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
-from ..core.models import Trajectory
+from ..utils.models import Trajectory
 
 
 @dataclass(slots=True)

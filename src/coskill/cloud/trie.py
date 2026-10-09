@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from ..core.models import Trajectory
+from ..utils.models import Trajectory
 
 
 def _normalize(text: str) -> str:

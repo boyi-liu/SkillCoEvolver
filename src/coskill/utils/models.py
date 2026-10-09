@@ -1,4 +1,4 @@
-"""Serializable data models shared by execution, storage, and evolution."""
+"""Serializable data models shared across edge, cloud, and storage layers."""
 
 from __future__ import annotations
 

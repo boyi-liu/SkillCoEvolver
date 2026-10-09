@@ -1,21 +1,18 @@
 """Co-Skill: structured collaborative skill evolution."""
 
-from .core import (
-    CoSkill,
-    CoSkillConfig,
-    EdgeAgent,
-    Environment,
+from .cloud import TrajectoryTrie
+from .core import CoSkill, CoSkillConfig
+from .edge import EdgeAgent, Environment, StepResult, TrajectoryPool, TriggerConfig
+from .llm import LLMClient, OpenAICompatibleClient
+from .skills import ProgressiveSkillTree, SkillLibrary, SkillNode
+from .utils import (
     EpisodeResult,
     RunArtifactRecorder,
-    StepResult,
     Task,
     TokenUsage,
     Trajectory,
     TrajectoryStep,
 )
-from .evolution import TrajectoryPool, TrajectoryTrie, TriggerConfig
-from .llm import LLMClient, OpenAICompatibleClient
-from .skills import ProgressiveSkillTree, SkillLibrary, SkillNode
 
 __all__ = [
     "CoSkill",

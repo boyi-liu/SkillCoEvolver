@@ -8,8 +8,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .models import Trajectory
 from ..skills import ProgressiveSkillTree
+from .models import Trajectory
 
 
 class RunArtifactRecorder:

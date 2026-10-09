@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
-from ..core.models import TokenUsage
+from ..utils.models import TokenUsage
 
 
 @dataclass(slots=True)

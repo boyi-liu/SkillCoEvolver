@@ -7,13 +7,13 @@ from dataclasses import dataclass
 from typing import Any, Sequence
 
 from ..llm import LLMClient, LLMError, Message
-from ..llm.prompts import (
+from .prompts import (
     EDGE_CLOSED_SYSTEM_PROMPT,
     EDGE_OPEN_SYSTEM_PROMPT,
     edge_prompt,
 )
 from ..skills import ProgressiveSkillTree
-from .models import Task, TokenUsage, Trajectory, TrajectoryStep
+from ..utils.models import Task, TokenUsage, Trajectory, TrajectoryStep
 
 
 @dataclass(slots=True)

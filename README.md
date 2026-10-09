@@ -24,6 +24,26 @@ Cloud LLM diagnoses failures and updates the skill tree
 Updated skill is persisted for later tasks
 ```
 
+## Package layout
+
+The runtime is organized around the edge/cloud boundary:
+
+```text
+src/coskill/
+├── edge/          # device agent, action prompts, trajectory buffering/triggers
+├── cloud/         # trajectory trie, cloud prompts, and skill evolution
+├── core/          # end-to-end orchestration across edge and cloud
+├── utils/         # shared data models and run-artifact recording
+├── skills/        # progressive skill tree and persistent skill library
+├── llm/           # provider-independent LLM client interfaces
+└── integrations/  # optional environment adapters such as ALFWorld
+```
+
+Use the layer-specific imports when extending the implementation, for example
+`from coskill.edge import EdgeAgent` and
+`from coskill.cloud import CloudSkillEvolver`. The package-level public API
+(`from coskill import ...`) remains available for applications.
+
 ## Run on ALFWorld
 
 ```bash
@@ -77,8 +97,11 @@ same skill database is reused across rounds:
 scripts/remote_look_sweep.sh PROJECT_DIR ALFWORLD_DATA 5 look_train_sweep 20
 ```
 
-Each round therefore performs one fixed-size skill update, and the next round
-starts from the skill tree produced by the previous round.
+Each round therefore performs one fixed-size skill update, then evaluates the
+updated skill on the 18-task `valid_unseen` Look test split. Test results are
+written to `runs/<run_name>_eval_round<N>.jsonl` and summarized as
+`TEST_SUMMARY` in the main log. The evaluation uses a copied database so test
+usage statistics do not affect the next training round.
 
 ## Test
 

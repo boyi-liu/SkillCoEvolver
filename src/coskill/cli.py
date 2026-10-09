@@ -6,7 +6,7 @@ import argparse
 import asyncio
 
 from .core import CoSkill, CoSkillConfig
-from .evolution import TriggerConfig
+from .edge import TriggerConfig
 from .llm import OpenAICompatibleClient
 from .skills import SkillLibrary
 

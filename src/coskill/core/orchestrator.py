@@ -6,17 +6,11 @@ import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..evolution import (
-    CloudSkillEvolver,
-    TrajectoryPool,
-    TrajectoryTrie,
-    TriggerConfig,
-)
+from ..cloud import CloudSkillEvolver, TrajectoryTrie
+from ..edge import EdgeAgent, Environment, TrajectoryPool, TriggerConfig
 from ..llm import LLMClient
 from ..skills import ProgressiveSkillTree, SkillLibrary
-from .agent import EdgeAgent, Environment
-from .models import EpisodeResult, Task
-from .recorder import RunArtifactRecorder
+from ..utils import EpisodeResult, RunArtifactRecorder, Task
 
 
 @dataclass(slots=True)
