@@ -31,6 +31,7 @@ def edge_prompt(
     admissible_actions: Sequence[str] | None = None,
 ) -> str:
     """Build the edge prompt containing task context and any closed action menu."""
+
     action_menu = (
         "\n".join(f"{index}: {action}" for index, action in enumerate(admissible_actions))
         if admissible_actions is not None

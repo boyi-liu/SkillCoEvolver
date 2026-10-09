@@ -30,14 +30,47 @@ The runtime is organized around the edge/cloud boundary:
 
 ```text
 src/coskill/
-├── edge/          # device agent, action prompts, trajectory buffering/triggers
-├── cloud/         # trajectory trie, cloud prompts, and skill evolution
-├── core/          # end-to-end orchestration across edge and cloud
+├── edge/          # BaseEdge and CoSkill agent/trigger specialization
+├── cloud/         # BaseCloud and CoSkill trie/tree specialization
+├── pipeline/      # base loop and concrete CoSkill pipeline assembly
 ├── utils/         # shared data models and run-artifact recording
 ├── skills/        # progressive skill tree and persistent skill library
 ├── llm/           # provider-independent LLM client interfaces
 └── integrations/  # optional environment adapters such as ALFWorld
 ```
+
+## General framework and Co-Skill instantiation
+
+`SkillEvolutionFramework` defines the shared control loop through six
+replaceable operators: skill registry, edge execution, collaboration
+scheduling, evidence compilation, cloud evolution, and evolution validation.
+`NaiveSkillEvolutionFramework` is a runnable baseline that uploads raw
+trajectories and rewrites a single flat instruction.
+
+The elementary edge operators live in `edge/base.py`, while the elementary
+cloud operators and baseline data contracts live in `cloud/base.py`.
+`pipeline/base.py` only coordinates these two runtimes and handles concurrent
+evolution rounds and artifact recording.
+
+Side-specific helpers live under `edge/utils/` and `cloud/utils/`. Prompt
+constants and builders are defined in each side's `utils/prompt.py`. Co-Skill's
+trajectory trie and progressive evolver are consolidated in `cloud/coskill.py`.
+Its robust action executor and adaptive trajectory trigger are consolidated in
+`edge/coskill.py`.
+
+`CoSkill` composes that framework with `CoSkillCloud`, which improves selected
+operators through cross-task skill retrieval, prefix-trie trajectory
+compression, and evidence-grounded progressive-tree patches. New algorithms
+can inject another edge/cloud runtime without changing the control loop.
+
+### Parameter ownership
+
+Global run controls are assembled in `cli.py` and passed directly to a
+pipeline: maximum episode steps, whether evolution is enabled, and artifact
+output location. Method-specific hyperparameters live beside their concrete
+pipeline. `pipeline/coskill.py` owns action retries, upload-trigger thresholds,
+trie rendering limits, and the maximum number of cloud evolution operations.
+This keeps benchmark/runtime settings separate from algorithm settings.
 
 Use the layer-specific imports when extending the implementation, for example
 `from coskill.edge import EdgeAgent` and
@@ -94,7 +127,7 @@ and update the skill after every 20 trajectories. The default is 5 rounds; the
 same skill database is reused across rounds:
 
 ```bash
-scripts/remote_look_sweep.sh PROJECT_DIR ALFWORLD_DATA 5 look_train_sweep 20
+scripts/remote_look_sweep.sh PROJECT_DIR ALFWORLD_DATA 5 look_train_sweep 20 18 CONFIG_PATH
 ```
 
 Each round therefore performs one fixed-size skill update, then evaluates the

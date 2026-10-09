@@ -1,4 +1,4 @@
-"""Prefix-merged trajectory trie used as compact cloud-side evidence."""
+"""Co-Skill cloud specialization: trie evidence and progressive evolution."""
 
 from __future__ import annotations
 
@@ -7,7 +7,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from ..utils.models import Trajectory
+from ..llm import LLMClient, Message
+from ..skills import ProgressiveSkillTree, SkillLibrary
+from ..utils.models import Task, TokenUsage, Trajectory
+from .base import BaseCloud, EvolutionDraft, SkillArtifact
+from .utils.prompt import CLOUD_SYSTEM_PROMPT, cloud_prompt
 
 
 def _normalize(text: str) -> str:
@@ -201,3 +205,196 @@ class TrajectoryTrie:
 
         visit(self.root, "", "")
         return "\n".join(lines)
+
+
+def _object_list(value: Any, *, limit: int) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)][:limit]
+
+
+@dataclass(slots=True)
+class EvolutionResult:
+    """Summary of one cloud evolution request and its applied operations."""
+
+    summary: str
+    diagnoses: list[dict[str, Any]] = field(default_factory=list)
+    contrasts: list[dict[str, Any]] = field(default_factory=list)
+    applied_operations: list[str] = field(default_factory=list)
+    usage: TokenUsage = field(default_factory=TokenUsage)
+
+
+class CloudSkillEvolver:
+    """Use a cloud LLM to maintain a progressive skill tree."""
+
+    def __init__(
+        self,
+        client: LLMClient,
+        *,
+        observation_limit: int = 300,
+        max_operations: int = 3,
+    ) -> None:
+        if observation_limit <= 0:
+            raise ValueError("observation_limit must be positive")
+        if not 1 <= max_operations <= 3:
+            raise ValueError("max_operations must be between 1 and 3")
+        self.client = client
+        self.observation_limit = observation_limit
+        self.max_operations = max_operations
+
+    async def evolve(
+        self,
+        tree: ProgressiveSkillTree,
+        trie: TrajectoryTrie,
+        trigger_reasons: list[str],
+    ) -> EvolutionResult:
+        """Request a minimal tree update from the cloud using the trajectory trie."""
+
+        payload, response = await self.client.complete_json(
+            [
+                Message("system", CLOUD_SYSTEM_PROMPT),
+                Message(
+                    "user",
+                    cloud_prompt(
+                        tree.guidance(),
+                        trie.to_markdown(observation_limit=self.observation_limit),
+                        trigger_reasons,
+                    ),
+                ),
+            ]
+        )
+        operations = _object_list(
+            payload.get("operations"), limit=self.max_operations
+        )
+        for operation in operations:
+            operation["children"] = _object_list(
+                operation.get("children"), limit=3
+            )
+        applied = tree.apply_operations(operations)
+        return EvolutionResult(
+            summary=str(payload.get("summary", "Skill tree updated")),
+            diagnoses=_object_list(
+                payload.get("diagnoses"), limit=self.max_operations
+            ),
+            contrasts=_object_list(
+                payload.get("contrasts"), limit=self.max_operations
+            ),
+            applied_operations=applied,
+            usage=response.usage,
+        )
+
+
+class CoSkillCloud(BaseCloud):
+    """Co-Skill cloud specialization using trie evidence and tree patches."""
+
+    def __init__(
+        self,
+        client: LLMClient,
+        library: SkillLibrary,
+        *,
+        observation_limit: int = 300,
+        max_operations: int = 3,
+    ) -> None:
+        super().__init__(client)
+        self.library = library
+        self.evolver = CloudSkillEvolver(
+            client,
+            observation_limit=observation_limit,
+            max_operations=max_operations,
+        )
+        self.borrowed_from: dict[str, str] = {}
+
+    def retrieve_skill(self, task: Task) -> ProgressiveSkillTree:
+        reusable_goal = task.skill_template or task.goal
+        entry = self.library.retrieve(task.task_type, reusable_goal)
+        if entry is not None:
+            if entry.task_type == task.task_type:
+                return entry.tree
+            tree = ProgressiveSkillTree.from_dict(entry.tree.to_dict())
+            tree.task_type = task.task_type
+            tree.goal = reusable_goal
+            tree.root.instruction = reusable_goal
+            self.commit_skill(tree)
+            self.borrowed_from[task.task_type] = entry.task_type
+            return tree
+        tree = ProgressiveSkillTree(task.task_type, reusable_goal)
+        self.commit_skill(tree)
+        return tree
+
+    def lookup_skill(self, task_type: str) -> ProgressiveSkillTree | None:
+        entry = self.library.get(task_type)
+        return entry.tree if entry is not None else None
+
+    def commit_skill(self, skill: SkillArtifact) -> None:
+        if not isinstance(skill, ProgressiveSkillTree):
+            raise TypeError("CoSkill cloud registry expects ProgressiveSkillTree")
+        self.library.save(skill)
+
+    def is_skill_discarded(self, task_type: str) -> bool:
+        entry = self.library.get(task_type, include_discarded=True)
+        return entry is not None and entry.state == "Discarded"
+
+    def record_skill_use(
+        self,
+        skill: SkillArtifact,
+        task: Task,
+        trajectory: Trajectory,
+    ) -> None:
+        if not isinstance(skill, ProgressiveSkillTree):
+            raise TypeError("CoSkill usage tracking expects ProgressiveSkillTree")
+        self.library.record_use(
+            skill.task_type,
+            trajectory.success,
+            observed_task_type=task.task_type,
+        )
+        source_task_type = self.borrowed_from.get(task.task_type)
+        if source_task_type is not None:
+            self.library.record_use(
+                source_task_type,
+                trajectory.success,
+                observed_task_type=task.task_type,
+            )
+
+    def compile_evidence(
+        self, task_type: str, trajectories: list[Trajectory]
+    ) -> TrajectoryTrie:
+        return TrajectoryTrie.from_trajectories(task_type, trajectories)
+
+    async def evolve_skill(
+        self,
+        skill: SkillArtifact,
+        evidence: Any,
+        trigger_reasons: list[str],
+        *,
+        framework_name: str,
+    ) -> EvolutionDraft:
+        del framework_name
+        if not isinstance(skill, ProgressiveSkillTree):
+            raise TypeError("CoSkill cloud evolution expects ProgressiveSkillTree")
+        if not isinstance(evidence, TrajectoryTrie):
+            raise TypeError("CoSkill cloud evolution expects TrajectoryTrie")
+        candidate = ProgressiveSkillTree.from_dict(skill.to_dict())
+        evolution = await self.evolver.evolve(
+            candidate, evidence, trigger_reasons
+        )
+        return EvolutionDraft(
+            candidate=candidate,
+            summary=evolution.summary,
+            usage=evolution.usage,
+            details={
+                "diagnoses": evolution.diagnoses,
+                "contrasts": evolution.contrasts,
+                "applied_operations": evolution.applied_operations,
+                "mode": "trie-progressive-tree-patching",
+            },
+        )
+
+
+__all__ = [
+    "CloudSkillEvolver",
+    "CoSkillCloud",
+    "EvolutionResult",
+    "ObservationCodec",
+    "TrajectoryTrie",
+    "TrieNode",
+]

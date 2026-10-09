@@ -7,9 +7,19 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Protocol
 
-from ..skills import ProgressiveSkillTree
 from .models import Trajectory
+
+
+class SerializableSkill(Protocol):
+    """Skill fields required by durable artifact recording."""
+
+    task_type: str
+    revision: int
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize this skill into a JSON-compatible mapping."""
 
 
 class RunArtifactRecorder:
@@ -26,7 +36,7 @@ class RunArtifactRecorder:
     def record(
         self,
         trajectory: Trajectory,
-        tree: ProgressiveSkillTree,
+        tree: SerializableSkill,
         *,
         episode_index: int | None = None,
         evolution_triggered: bool = False,
@@ -53,7 +63,7 @@ class RunArtifactRecorder:
 
     def record_tree(
         self,
-        tree: ProgressiveSkillTree,
+        tree: SerializableSkill,
         *,
         episode_index: int | None = None,
         event: str = "snapshot",
@@ -75,7 +85,7 @@ class RunArtifactRecorder:
         )
         self._write_latest_tree(tree)
 
-    def _write_latest_tree(self, tree: ProgressiveSkillTree) -> None:
+    def _write_latest_tree(self, tree: SerializableSkill) -> None:
         filename = f"{self._safe_name(tree.task_type)}.json"
         target = self.latest_skills / filename
         temporary = target.with_name(f".{filename}.tmp")

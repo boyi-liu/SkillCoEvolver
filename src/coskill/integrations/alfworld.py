@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from ..core import CoSkill
+from ..pipeline import CoSkill
 from ..edge import Environment, StepResult
 from ..utils import EpisodeResult, Task
 

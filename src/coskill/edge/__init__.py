@@ -1,9 +1,11 @@
 """Edge-side task execution and trajectory upload policies."""
 
-from .agent import EdgeAgent, Environment, StepResult
-from .pool import TrajectoryPool, TriggerConfig, TriggerDecision
+from .base import BaseEdge, Environment, StepResult, TriggerConfig, TriggerDecision
+from .coskill import CoSkillEdge, EdgeAgent, TrajectoryPool
 
 __all__ = [
+    "BaseEdge",
+    "CoSkillEdge",
     "EdgeAgent",
     "Environment",
     "StepResult",

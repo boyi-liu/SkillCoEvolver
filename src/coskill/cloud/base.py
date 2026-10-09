@@ -1,0 +1,203 @@
+"""Baseline cloud-side operators for collaborative skill evolution."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from typing import Any, Protocol, runtime_checkable
+
+from ..llm import LLMClient, Message
+from ..utils import Task, TokenUsage, Trajectory
+from .utils.prompt import NAIVE_EVOLUTION_SYSTEM_PROMPT, naive_cloud_prompt
+
+
+@runtime_checkable
+class SkillArtifact(Protocol):
+    """Minimal skill contract shared by cloud storage and edge execution."""
+
+    task_type: str
+    goal: str
+    revision: int
+
+    def guidance(self, *, max_depth: int | None = None) -> str:
+        """Render reusable guidance for edge execution."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the skill for storage and artifact recording."""
+
+
+@dataclass(slots=True)
+class FlatSkill:
+    """Single-instruction skill used by the representation-neutral baseline."""
+
+    task_type: str
+    goal: str
+    instruction: str
+    revision: int = 0
+    uses: int = 0
+    successes: int = 0
+
+    def guidance(self, *, max_depth: int | None = None) -> str:
+        del max_depth
+        return self.instruction
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": "flat",
+            "task_type": self.task_type,
+            "goal": self.goal,
+            "instruction": self.instruction,
+            "revision": self.revision,
+            "uses": self.uses,
+            "successes": self.successes,
+        }
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "FlatSkill":
+        return cls(
+            task_type=str(value["task_type"]),
+            goal=str(value["goal"]),
+            instruction=str(value["instruction"]),
+            revision=int(value.get("revision", 0)),
+            uses=int(value.get("uses", 0)),
+            successes=int(value.get("successes", 0)),
+        )
+
+
+@dataclass(slots=True)
+class RawTrajectoryEvidence:
+    """Uncompressed evidence used by the most direct cloud baseline."""
+
+    task_type: str
+    trajectories: list[Trajectory]
+
+    def to_prompt(self) -> str:
+        return json.dumps(
+            [trajectory.to_dict() for trajectory in self.trajectories],
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
+
+
+@dataclass(slots=True)
+class EvolutionDraft:
+    """A candidate skill revision produced before validation and persistence."""
+
+    candidate: SkillArtifact
+    summary: str
+    usage: TokenUsage = field(default_factory=TokenUsage)
+    details: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ValidationResult:
+    """Decision made by the cloud-side evolution guard."""
+
+    accepted: bool
+    reason: str = ""
+
+
+class BaseCloud:
+    """Elementary registry, evidence, evolution, and validation operators."""
+
+    def __init__(self, client: LLMClient) -> None:
+        self.client = client
+        self._registry: dict[str, FlatSkill] = {}
+
+    def retrieve_skill(self, task: Task) -> SkillArtifact:
+        """Retrieve an exact task skill or initialize a flat instruction."""
+
+        existing = self.lookup_skill(task.task_type)
+        if existing is not None:
+            return existing
+        goal = task.skill_template or task.goal
+        skill = FlatSkill(task.task_type, goal, goal)
+        self.commit_skill(skill)
+        return skill
+
+    def lookup_skill(self, task_type: str) -> SkillArtifact | None:
+        return self._registry.get(task_type)
+
+    def commit_skill(self, skill: SkillArtifact) -> None:
+        if not isinstance(skill, FlatSkill):
+            raise TypeError("baseline cloud registry expects FlatSkill")
+        self._registry[skill.task_type] = skill
+
+    def is_skill_discarded(self, task_type: str) -> bool:
+        del task_type
+        return False
+
+    def record_skill_use(
+        self,
+        skill: SkillArtifact,
+        task: Task,
+        trajectory: Trajectory,
+    ) -> None:
+        del task
+        if isinstance(skill, FlatSkill):
+            skill.uses += 1
+            skill.successes += int(trajectory.success)
+
+    def compile_evidence(
+        self, task_type: str, trajectories: list[Trajectory]
+    ) -> RawTrajectoryEvidence:
+        """Keep raw trajectories as the elementary cloud evidence."""
+
+        return RawTrajectoryEvidence(task_type, trajectories)
+
+    async def evolve_skill(
+        self,
+        skill: SkillArtifact,
+        evidence: Any,
+        trigger_reasons: list[str],
+        *,
+        framework_name: str,
+    ) -> EvolutionDraft:
+        """Naively rewrite one flat instruction from raw trajectory evidence."""
+
+        if not isinstance(evidence, RawTrajectoryEvidence):
+            raise TypeError("baseline cloud evolution expects raw evidence")
+        if not isinstance(skill, FlatSkill):
+            raise TypeError("baseline cloud evolution expects FlatSkill")
+        payload, response = await self.client.complete_json(
+            [
+                Message("system", NAIVE_EVOLUTION_SYSTEM_PROMPT),
+                Message(
+                    "user",
+                    naive_cloud_prompt(
+                        framework_name,
+                        skill.guidance(),
+                        evidence.to_prompt(),
+                        trigger_reasons,
+                    ),
+                ),
+            ]
+        )
+        candidate = FlatSkill.from_dict(skill.to_dict())
+        instruction = str(payload.get("instruction", "")).strip()
+        if instruction and instruction != candidate.instruction:
+            candidate.instruction = instruction
+            candidate.revision += 1
+        return EvolutionDraft(
+            candidate=candidate,
+            summary=str(payload.get("summary", "Flat instruction reviewed")),
+            usage=response.usage,
+            details={"mode": "raw-trajectory-flat-rewrite"},
+        )
+
+    def validate_evolution(
+        self,
+        current: SkillArtifact,
+        draft: EvolutionDraft,
+    ) -> ValidationResult:
+        """Apply identity, monotonicity, and non-empty checks."""
+
+        candidate = draft.candidate
+        if candidate.task_type != current.task_type:
+            return ValidationResult(False, "candidate changed task identity")
+        if candidate.revision < current.revision:
+            return ValidationResult(False, "candidate revision moved backwards")
+        if not candidate.goal.strip() or not candidate.guidance().strip():
+            return ValidationResult(False, "candidate contains an empty goal or skill")
+        return ValidationResult(True, "basic structural checks passed")
