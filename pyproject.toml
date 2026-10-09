@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "coskill"
+version = "0.1.0"
+description = "A practical implementation of Co-Skill's Collaborative Communication Framework"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Co-Skill implementation contributors"}]
+dependencies = []
+
+[project.optional-dependencies]
+alfworld = ["alfworld", "PyYAML>=6"]
+
+[project.scripts]
+coskill = "coskill.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

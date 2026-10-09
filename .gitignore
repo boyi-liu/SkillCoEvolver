@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+.conda/
+.env
+coskill.db
+**/.DS_Store
+.vscode
+runs/
+scripts/
+tests/
+.env.example
+examples/
+configs/
