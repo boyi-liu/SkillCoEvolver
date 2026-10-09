@@ -1,4 +1,4 @@
-"""Progressive, serializable skill trees maintained by cloud updates."""
+"""Progressive, serializable skill trees used by CoSkill."""
 
 from __future__ import annotations
 

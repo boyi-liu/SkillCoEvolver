@@ -1,26 +1,30 @@
 """Co-Skill: structured collaborative skill evolution."""
 
-from .cloud import BaseCloud, CoSkillCloud, TrajectoryTrie
-from .pipeline import (
-    CoSkill,
-    CoSkillConfig,
+from .framework import (
+    BaseCloudRuntime,
+    BaseEdgeRuntime,
+    BaseSkillEvolutionFramework,
+    Environment,
     FlatSkill,
-    NaiveSkillEvolutionFramework,
     SkillArtifact,
     SkillEvolutionConfig,
     SkillEvolutionFramework,
-)
-from .edge import (
-    BaseEdge,
-    CoSkillEdge,
-    EdgeAgent,
-    Environment,
     StepResult,
-    TrajectoryPool,
     TriggerConfig,
 )
+from .methods.coskill import (
+    CoSkill,
+    CoSkillCloud,
+    CoSkillConfig,
+    CoSkillEdge,
+    EdgeAgent,
+    ProgressiveSkillTree,
+    SkillLibrary,
+    SkillNode,
+    TrajectoryPool,
+    TrajectoryTrie,
+)
 from .llm import LLMClient, OpenAICompatibleClient
-from .skills import ProgressiveSkillTree, SkillLibrary, SkillNode
 from .utils import (
     EpisodeResult,
     RunArtifactRecorder,
@@ -31,8 +35,9 @@ from .utils import (
 )
 
 __all__ = [
-    "BaseCloud",
-    "BaseEdge",
+    "BaseCloudRuntime",
+    "BaseEdgeRuntime",
+    "BaseSkillEvolutionFramework",
     "CoSkill",
     "CoSkillCloud",
     "CoSkillConfig",
@@ -43,7 +48,6 @@ __all__ = [
     "FlatSkill",
     "RunArtifactRecorder",
     "LLMClient",
-    "NaiveSkillEvolutionFramework",
     "OpenAICompatibleClient",
     "ProgressiveSkillTree",
     "SkillLibrary",

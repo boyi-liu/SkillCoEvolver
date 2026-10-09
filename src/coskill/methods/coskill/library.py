@@ -1,4 +1,4 @@
-"""SQLite-backed storage and retrieval for reusable progressive skill trees."""
+"""SQLite-backed storage and retrieval for CoSkill's progressive trees."""
 
 from __future__ import annotations
 

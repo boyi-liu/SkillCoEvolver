@@ -7,11 +7,12 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from ..llm import LLMClient, Message
-from ..skills import ProgressiveSkillTree, SkillLibrary
-from ..utils.models import Task, TokenUsage, Trajectory
-from .base import BaseCloud, EvolutionDraft, SkillArtifact
-from .utils.prompt import CLOUD_SYSTEM_PROMPT, cloud_prompt
+from ...framework import BaseCloudRuntime, EvolutionDraft, SkillArtifact
+from ...llm import LLMClient, Message
+from ...utils.models import Task, TokenUsage, Trajectory
+from .library import SkillLibrary
+from .prompts import CLOUD_SYSTEM_PROMPT, cloud_prompt
+from .tree import ProgressiveSkillTree
 
 
 def _normalize(text: str) -> str:
@@ -284,7 +285,7 @@ class CloudSkillEvolver:
         )
 
 
-class CoSkillCloud(BaseCloud):
+class CoSkillCloud(BaseCloudRuntime):
     """Co-Skill cloud specialization using trie evidence and tree patches."""
 
     def __init__(

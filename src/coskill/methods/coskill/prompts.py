@@ -1,13 +1,4 @@
-"""Prompt templates shared by baseline and specialized cloud evolvers."""
-
-
-NAIVE_EVOLUTION_SYSTEM_PROMPT = """You maintain one reusable task instruction.
-Given the current instruction and raw device trajectories, make the smallest
-evidence-supported improvement. Do not copy episode-specific object names or IDs.
-Return exactly one JSON object with this schema:
-{"instruction": "one reusable instruction", "summary": "short explanation"}
-If the evidence does not justify a change, return the current instruction.
-"""
+"""Prompt templates for CoSkill's progressive cloud evolver."""
 
 
 CLOUD_SYSTEM_PROMPT = """You are the cloud-side skill maintainer in Co-Skill.
@@ -56,26 +47,6 @@ Return exactly one JSON object with this schema:
 }"""
 
 
-def naive_cloud_prompt(
-    framework_name: str,
-    instruction: str,
-    evidence: str,
-    trigger_reasons: list[str],
-) -> str:
-    """Build the raw-trajectory baseline evolution prompt."""
-
-    reasons = "\n".join(f"- {reason}" for reason in trigger_reasons)
-    return f"""Framework: {framework_name}
-Update trigger:
-{reasons}
-
-Current reusable instruction:
-{instruction}
-
-Raw trajectories:
-{evidence}"""
-
-
 def cloud_prompt(tree: str, trie: str, trigger_reasons: list[str]) -> str:
     """Build the trie-to-progressive-tree evolution prompt."""
 
@@ -90,3 +61,6 @@ Cloud-aware prefix-merged trajectory trie:
 {trie}
 
 Return only evidence-supported, minimal tree-maintenance operations."""
+
+
+__all__ = ["CLOUD_SYSTEM_PROMPT", "cloud_prompt"]

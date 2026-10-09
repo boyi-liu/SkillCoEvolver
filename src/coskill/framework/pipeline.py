@@ -1,4 +1,4 @@
-"""Base pipeline for edge-cloud continual skill evolution."""
+"""Method-independent control loop for edge-cloud skill evolution."""
 
 from __future__ import annotations
 
@@ -8,17 +8,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..cloud.base import (
-    BaseCloud,
+from ..llm import LLMClient
+from .cloud import BaseCloudRuntime
+from .contracts import (
+    CloudRuntime,
+    EdgeRuntime,
+    Environment,
     EvolutionDraft,
-    FlatSkill,
-    RawTrajectoryEvidence,
     SkillArtifact,
+    TriggerConfig,
+    TriggerDecision,
     ValidationResult,
 )
-from ..edge import Environment, TriggerConfig, TriggerDecision
-from ..edge.base import BaseEdge
-from ..llm import LLMClient
+from .edge import BaseEdgeRuntime
 from ..utils import EpisodeResult, RunArtifactRecorder, Task, TokenUsage, Trajectory
 
 
@@ -33,20 +35,17 @@ class SkillEvolutionConfig:
 class SkillEvolutionFramework(ABC):
     """Coordinate replaceable edge and cloud operators in one control loop.
 
-    ``BaseEdge`` supplies edge execution and collaboration scheduling.
-    ``BaseCloud`` supplies skill registry, evidence compilation, skill evolution,
-    and evolution validation.  Subclasses can inject specialized edge/cloud
-    implementations without changing this orchestration algorithm.
+    A method supplies edge execution, collaboration scheduling, skill storage,
+    evidence compilation, evolution, and validation through the runtime
+    contracts. The framework contains no concrete algorithm implementation.
     """
 
     def __init__(
         self,
         *,
-        device_client: LLMClient,
-        cloud_client: LLMClient,
+        edge_runtime: EdgeRuntime,
+        cloud_runtime: CloudRuntime,
         config: SkillEvolutionConfig | None = None,
-        edge_runtime: BaseEdge | None = None,
-        cloud_runtime: BaseCloud | None = None,
         max_steps: int | None = None,
         enable_evolution: bool | None = None,
         artifact_dir: str | Path | None = None,
@@ -70,18 +69,13 @@ class SkillEvolutionFramework(ABC):
         self.artifact_dir = (
             artifact_dir if artifact_dir is not None else legacy_artifact_dir
         )
-        self.edge_runtime = edge_runtime or BaseEdge(
-            device_client,
-            max_steps=self.max_steps,
-            action_retries=self.config.action_retries,
-            trigger=self.config.trigger,
-        )
-        self.cloud_runtime = cloud_runtime or BaseCloud(cloud_client)
+        self.edge_runtime = edge_runtime
+        self.cloud_runtime = cloud_runtime
 
         # Keep the historical attributes available to downstream callers.
         self.edge = self.edge_runtime.agent
         self.pool = self.edge_runtime.pool
-        self.cloud_client = cloud_client
+        self.cloud_client = getattr(cloud_runtime, "client", None)
         self.recorder = (
             RunArtifactRecorder(self.artifact_dir)
             if self.artifact_dir is not None
@@ -234,19 +228,53 @@ class SkillEvolutionFramework(ABC):
         return f"{draft.summary} [rejected: {validation.reason}]"
 
 
-class NaiveSkillEvolutionFramework(SkillEvolutionFramework):
-    """Runnable baseline composed from ``BaseEdge`` and ``BaseCloud``."""
+class BaseSkillEvolutionFramework(SkillEvolutionFramework):
+    """Runnable default framework and base composition for specialized methods."""
+
+    def __init__(
+        self,
+        *,
+        device_client: LLMClient | None = None,
+        cloud_client: LLMClient | None = None,
+        config: SkillEvolutionConfig | None = None,
+        edge_runtime: EdgeRuntime | None = None,
+        cloud_runtime: CloudRuntime | None = None,
+        max_steps: int | None = None,
+        enable_evolution: bool | None = None,
+        artifact_dir: str | Path | None = None,
+    ) -> None:
+        effective_config = config or SkillEvolutionConfig()
+        resolved_max_steps = max_steps if max_steps is not None else 40
+        if edge_runtime is None:
+            if device_client is None:
+                raise TypeError("device_client is required without edge_runtime")
+            edge_runtime = BaseEdgeRuntime(
+                device_client,
+                max_steps=resolved_max_steps,
+                action_retries=effective_config.action_retries,
+                trigger=effective_config.trigger,
+            )
+        if cloud_runtime is None:
+            if cloud_client is None:
+                raise TypeError("cloud_client is required without cloud_runtime")
+            cloud_runtime = BaseCloudRuntime(cloud_client)
+        super().__init__(
+            edge_runtime=edge_runtime,
+            cloud_runtime=cloud_runtime,
+            config=effective_config,
+            max_steps=resolved_max_steps,
+            enable_evolution=enable_evolution,
+            artifact_dir=artifact_dir,
+        )
 
     @property
     def framework_name(self) -> str:
-        return "naive-edge-cloud-skill-evolution"
+        return "base-edge-cloud-skill-evolution"
 
 
 __all__ = [
+    "BaseSkillEvolutionFramework",
     "EvolutionDraft",
-    "FlatSkill",
-    "NaiveSkillEvolutionFramework",
-    "RawTrajectoryEvidence",
     "SkillArtifact",
     "SkillEvolutionConfig",
     "SkillEvolutionFramework",

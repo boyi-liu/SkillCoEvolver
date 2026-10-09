@@ -26,56 +26,51 @@ Updated skill is persisted for later tasks
 
 ## Package layout
 
-The runtime is organized around the edge/cloud boundary:
+The runtime separates reusable base behavior from concrete method
+specializations:
 
 ```text
 src/coskill/
-├── edge/          # BaseEdge and CoSkill agent/trigger specialization
-├── cloud/         # BaseCloud and CoSkill trie/tree specialization
-├── pipeline/      # base loop and concrete CoSkill pipeline assembly
+├── framework/     # contracts, default runtimes, and the shared control loop
+├── methods/
+│   └── coskill/   # CoSkill edge, cloud, skills, prompts, and pipeline
 ├── utils/         # shared data models and run-artifact recording
-├── skills/        # progressive skill tree and persistent skill library
 ├── llm/           # provider-independent LLM client interfaces
 └── integrations/  # optional environment adapters such as ALFWorld
 ```
 
 ## General framework and Co-Skill instantiation
 
-`SkillEvolutionFramework` defines the shared control loop through six
-replaceable operators: skill registry, edge execution, collaboration
-scheduling, evidence compilation, cloud evolution, and evolution validation.
-`NaiveSkillEvolutionFramework` is a runnable baseline that uploads raw
+`framework/` defines the runtime contracts, default edge agent/runtime,
+failure-aware trajectory scheduler, flat-skill cloud runtime, structural
+validation, and shared control loop. Its default pipeline uploads raw
 trajectories and rewrites a single flat instruction.
 
-The elementary edge operators live in `edge/base.py`, while the elementary
-cloud operators and baseline data contracts live in `cloud/base.py`.
-`pipeline/base.py` only coordinates these two runtimes and handles concurrent
-evolution rounds and artifact recording.
-
-Side-specific helpers live under `edge/utils/` and `cloud/utils/`. Prompt
-constants and builders are defined in each side's `utils/prompt.py`. Co-Skill's
-trajectory trie and progressive evolver are consolidated in `cloud/coskill.py`.
-Its robust action executor and adaptive trajectory trigger are consolidated in
-`edge/coskill.py`.
+`methods/coskill/` specializes those framework bases with corrective action
+retries, cross-task retrieval, trajectory tries, progressive skill trees,
+persistent storage, and evidence-grounded tree patches. Method code depends
+only on `framework/`, never on another method package.
 
 `CoSkill` composes that framework with `CoSkillCloud`, which improves selected
 operators through cross-task skill retrieval, prefix-trie trajectory
-compression, and evidence-grounded progressive-tree patches. New algorithms
-can inject another edge/cloud runtime without changing the control loop.
+compression, and evidence-grounded progressive-tree patches. A new algorithm
+can be added as another `methods/<name>/` package without changing the shared
+control loop or scattering its implementation across layer directories.
 
 ### Parameter ownership
 
 Global run controls are assembled in `cli.py` and passed directly to a
 pipeline: maximum episode steps, whether evolution is enabled, and artifact
 output location. Method-specific hyperparameters live beside their concrete
-pipeline. `pipeline/coskill.py` owns action retries, upload-trigger thresholds,
-trie rendering limits, and the maximum number of cloud evolution operations.
-This keeps benchmark/runtime settings separate from algorithm settings.
+pipeline. `methods/coskill/config.py` owns action retries, upload-trigger
+thresholds, trie rendering limits, and the maximum number of cloud evolution
+operations. This keeps benchmark/runtime settings separate from algorithm
+settings.
 
-Use the layer-specific imports when extending the implementation, for example
-`from coskill.edge import EdgeAgent` and
-`from coskill.cloud import CloudSkillEvolver`. The package-level public API
-(`from coskill import ...`) remains available for applications.
+Use method-scoped imports when extending the implementation, for example
+`from coskill.methods.coskill import EdgeAgent, CloudSkillEvolver`. The
+package-level public API (`from coskill import ...`) remains available for
+applications.
 
 ## Run on ALFWorld
 
@@ -121,6 +116,30 @@ coskill alfworld --split eval_out_of_distribution --episodes 100 \
   --output runs/eval.jsonl \
   --no-evolution
 ```
+
+## Run on SearchQA
+
+The SearchQA integration reads local JSON or JSONL without adding a dataset
+runtime dependency. It accepts the original fields (`question`, `answer`, and
+`search_results.snippets`), Hugging Face JSON exports, and MRQA-style
+`context`/`answers` examples. A JSON file may be a list of examples or a mapping
+of split names to example lists.
+
+```bash
+coskill searchqa --data data/searchqa.json \
+  --split train \
+  --episodes 100 \
+  --db runs/searchqa-skills.db \
+  --output runs/searchqa-train.jsonl \
+  --artifacts-dir runs/searchqa-artifacts
+```
+
+Each question is a one-step episode: the edge model receives the question and
+up to 50 retrieved snippets, then returns its shortest final answer as the open
+environment action. Runs report normalized exact match and token F1. Gold
+answers are retained by the evaluator and are not included in model prompts or
+skill-evolution trajectories. Use `--max-snippets` and `--max-context-chars` to
+bound prompt context, and `--shuffle --seed 42` for deterministic sampling.
 
 For the repeated Look-task experiment, use 20 training trajectories per round
 and update the skill after every 20 trajectories. The default is 5 rounds; the

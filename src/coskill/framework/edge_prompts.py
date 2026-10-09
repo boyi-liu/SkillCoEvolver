@@ -1,4 +1,4 @@
-"""Prompt templates for edge-side action selection."""
+"""Method-independent prompts for environment action selection."""
 
 from typing import Sequence
 
@@ -59,3 +59,6 @@ Numbered actions:
 
 Choose the single action that best advances the episode goal.
 Return only {response_schema}."""
+
+
+__all__ = ["EDGE_CLOSED_SYSTEM_PROMPT", "EDGE_OPEN_SYSTEM_PROMPT", "edge_prompt"]
