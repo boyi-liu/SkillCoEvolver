@@ -1,4 +1,29 @@
-"""Method-independent control loop for edge-cloud skill evolution."""
+"""Method-independent control loop for edge-cloud skill evolution.
+
+One episode is organized into eight ordered steps:
+
+1. **Retrieve skill** -- load an existing skill for the task type or initialize
+   one when the task is first observed.
+2. **Execute at the edge** -- run the task in the environment with that skill
+   and collect a complete trajectory plus edge-model token usage.
+3. **Update usage state** -- report the trajectory outcome to the skill store
+   and initialize the episode result.
+4. **Schedule collaboration** -- buffer the trajectory and decide whether the
+   cloud evolution branch should run. Disabled evolution or an untriggered
+   decision ends the episode here.
+5. **Collect a consistent batch** -- serialize evolution per task type, drain
+   the buffered trajectories, and reload the latest committed skill.
+6. **Compile and evolve** -- turn the trajectory batch into method-specific
+   evidence and ask the cloud runtime to produce a candidate skill revision.
+7. **Validate and commit** -- check the candidate and persist it only when the
+   validation policy accepts it.
+8. **Record and return** -- combine edge/cloud usage, save optional artifacts,
+   and return the final :class:`~coskill.utils.EpisodeResult`.
+
+Steps 1--3 and 8 form the normal execution path. Steps 4--7 are the optional
+collaboration/evolution path. :meth:`SkillEvolutionFramework.flush` manually
+enters the evolution path from step 5 for trajectories already in the buffer.
+"""
 
 from __future__ import annotations
 
@@ -146,12 +171,19 @@ class SkillEvolutionFramework(ABC):
         *,
         episode_index: int | None = None,
     ) -> EpisodeResult:
-        """Run the shared retrieve-execute-compile-evolve-validate loop."""
+        """Run the eight-step episode pipeline documented at module level."""
 
+        # Step 1: retrieve or initialize the task's reusable skill.
         skill = self.retrieve_skill(task)
+
+        # Step 2: execute the task at the edge and collect its trajectory.
         trajectory, edge_usage = await self.execute_at_edge(task, environment, skill)
+
+        # Step 3: update skill usage state and initialize the episode result.
         self.cloud_runtime.record_skill_use(skill, task, trajectory)
         result = EpisodeResult(trajectory=trajectory, token_usage=edge_usage)
+
+        # Step 4: decide whether this trajectory should trigger collaboration.
         if not self.enable_evolution:
             self._record_episode(skill, result, episode_index)
             return result
@@ -161,6 +193,7 @@ class SkillEvolutionFramework(ABC):
             self._record_episode(skill, result, episode_index)
             return result
 
+        # Step 5: serialize updates per task and collect a consistent batch.
         lock = self._evolution_locks.setdefault(task.task_type, asyncio.Lock())
         async with lock:
             trajectories = self.edge_runtime.drain(task.task_type)
@@ -168,8 +201,12 @@ class SkillEvolutionFramework(ABC):
                 self._record_episode(skill, result, episode_index)
                 return result
             current = self.lookup_skill(task.task_type) or skill
+
+            # Step 6: compile method-specific evidence and evolve a candidate.
             evidence = self.compile_evidence(task.task_type, trajectories)
             draft = await self.evolve_skill(current, evidence, decision.reasons)
+
+            # Step 7: validate the candidate before committing it to storage.
             validation = self.validate_evolution(current, draft)
             committed = current
             if validation.accepted:
@@ -179,6 +216,7 @@ class SkillEvolutionFramework(ABC):
             result.evolution_summary = self._evolution_summary(draft, validation)
             result.token_usage = result.token_usage + draft.usage
 
+        # Step 8: persist optional run artifacts and return the episode result.
         self._record_episode(committed, result, episode_index)
         return result
 
