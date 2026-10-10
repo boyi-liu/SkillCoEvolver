@@ -32,7 +32,7 @@
 运行时将可复用的基础行为与具体方法实现分离：
 
 ```text
-src/coskill/
+src/skillcoevolver/
 ├── framework/     # 契约、默认运行时以及共享控制循环
 ├── methods/
 │   └── coskill/   # CoSkill 边缘端、云端、技能、提示词和流水线
@@ -56,10 +56,10 @@ src/coskill/
 扩展实现时，请使用方法作用域内的导入，例如：
 
 ```python
-from coskill.methods.coskill import EdgeAgent, CloudSkillEvolver
+from skillcoevolver.methods.coskill import EdgeAgent, CloudSkillEvolver
 ```
 
-包级公开 API（`from coskill import ...`）仍可供应用使用。
+包级公开 API（`from skillcoevolver import ...`）仍可供应用使用。
 
 ### 算法选择
 
@@ -89,7 +89,7 @@ export COSKILL_CLOUD_MODEL=...
 在训练集上演化技能：
 
 ```bash
-coskill alfworld --alg coskill --split train --episodes 100 \
+skillcoevolver alfworld --alg coskill --split train --episodes 100 \
   --skill-library runs/alfworld-skills.json \
   --output runs/train.jsonl \
   --artifacts-dir runs/train-artifacts
@@ -105,7 +105,7 @@ coskill alfworld --alg coskill --split train --episodes 100 \
 在不继续演化的情况下评估已持久化的技能：
 
 ```bash
-coskill alfworld --alg coskill --split eval_out_of_distribution --episodes 100 \
+skillcoevolver alfworld --alg coskill --split eval_out_of_distribution --episodes 100 \
   --skill-library runs/alfworld-skills.json \
   --output runs/eval.jsonl \
   --no-evolution
@@ -116,7 +116,7 @@ coskill alfworld --alg coskill --split eval_out_of_distribution --episodes 100 \
 SearchQA 集成从本地 JSON 或 JSONL 文件读取数据，不会额外引入数据集运行时依赖。它支持原始字段（`question`、`answer` 和 `search_results.snippets`）、Hugging Face JSON 导出格式以及 MRQA 风格的 `context`/`answers` 示例。JSON 文件可以是示例列表，也可以是将 split 名称映射到示例列表的字典。
 
 ```bash
-coskill searchqa --alg coskill --data data/searchqa.json \
+skillcoevolver searchqa --alg coskill --data data/searchqa.json \
   --split train \
   --episodes 100 \
   --skill-library runs/searchqa-skills.json \

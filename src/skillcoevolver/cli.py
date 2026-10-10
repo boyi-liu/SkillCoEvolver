@@ -234,7 +234,7 @@ def _add_coskill_arguments(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("CoSkill options")
     group.add_argument(
         "--skill-library",
-        default="coskill.json",
+        default="skillcoevolver.json",
         help="persistent JSON skill library path",
     )
     group.add_argument(

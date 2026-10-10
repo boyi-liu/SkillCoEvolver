@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "coskill"
+name = "skillcoevolver"
 version = "0.1.0"
 description = "A practical implementation of Co-Skill's Collaborative Communication Framework"
 readme = "README.md"
@@ -16,7 +16,7 @@ dependencies = []
 alfworld = ["alfworld", "PyYAML>=6"]
 
 [project.scripts]
-coskill = "coskill.cli:main"
+skillcoevolver = "skillcoevolver.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

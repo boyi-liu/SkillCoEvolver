@@ -16,7 +16,7 @@ One episode is organized into six ordered steps:
    when the validation policy accepts it.
 6. **[Edge + Cloud] Record and return** -- combine edge/cloud usage, save
    optional artifacts, and return the final
-   :class:`~coskill.utils.EpisodeResult`.
+   :class:`~skillcoevolver.utils.EpisodeResult`.
 
 Steps 1--2 and 6 form the normal execution path. Steps 3--5 are the optional
 collaboration/evolution path. :meth:`SkillEvolutionFramework.flush` manually

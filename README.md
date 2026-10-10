@@ -33,7 +33,7 @@ The runtime separates reusable base behavior from concrete method
 specializations:
 
 ```text
-src/coskill/
+src/skillcoevolver/
 ├── framework/     # contracts, default runtimes, and the shared control loop
 ├── methods/
 │   └── coskill/   # CoSkill edge, cloud, skills, prompts, and pipeline
@@ -71,8 +71,8 @@ operations. This keeps benchmark/runtime settings separate from algorithm
 settings.
 
 Use method-scoped imports when extending the implementation, for example
-`from coskill.methods.coskill import EdgeAgent, CloudSkillEvolver`. The
-package-level public API (`from coskill import ...`) remains available for
+`from skillcoevolver.methods.coskill import EdgeAgent, CloudSkillEvolver`. The
+package-level public API (`from skillcoevolver import ...`) remains available for
 applications.
 
 ### Algorithm selection
@@ -105,7 +105,7 @@ export COSKILL_CLOUD_MODEL=...
 Evolve skills on the training split:
 
 ```bash
-coskill alfworld --alg coskill --split train --episodes 100 \
+skillcoevolver alfworld --alg coskill --split train --episodes 100 \
   --skill-library runs/alfworld-skills.json \
   --output runs/train.jsonl \
   --artifacts-dir runs/train-artifacts
@@ -121,7 +121,7 @@ When `--artifacts-dir` is set, artifacts are flushed after every episode:
 Evaluate the persisted skills without further evolution:
 
 ```bash
-coskill alfworld --alg coskill --split eval_out_of_distribution --episodes 100 \
+skillcoevolver alfworld --alg coskill --split eval_out_of_distribution --episodes 100 \
   --skill-library runs/alfworld-skills.json \
   --output runs/eval.jsonl \
   --no-evolution
@@ -136,7 +136,7 @@ runtime dependency. It accepts the original fields (`question`, `answer`, and
 of split names to example lists.
 
 ```bash
-coskill searchqa --alg coskill --data data/searchqa.json \
+skillcoevolver searchqa --alg coskill --data data/searchqa.json \
   --split train \
   --episodes 100 \
   --skill-library runs/searchqa-skills.json \

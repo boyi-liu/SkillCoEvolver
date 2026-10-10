@@ -32,7 +32,7 @@ class SkillLibrary:
 
     FORMAT_VERSION = 1
 
-    def __init__(self, path: str | Path = "coskill.json") -> None:
+    def __init__(self, path: str | Path = "skillcoevolver.json") -> None:
         self.path = str(path)
         self._in_memory = self.path == ":memory:"
         self._file = None if self._in_memory else Path(path).expanduser()
