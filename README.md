@@ -1,5 +1,11 @@
 # SkillCoEvolver
 
+<p align="center">
+  <a href="README.md">🇬🇧 English</a>
+  &nbsp;•&nbsp;
+  <a href="README_zh.md">🇨🇳 中文</a>
+</p>
+
 ## Pipeline
 
 ```text
@@ -170,9 +176,3 @@ nohup bash scripts/remote_all_task_sweeps.sh \
 
 The batch script creates independent DBs and logs for Pick, Look, Clean, Heat,
 Cool, and Pick-2, and stops if any task family fails.
-
-## Test
-
-```bash
-python -m unittest discover -s tests -v
-```
