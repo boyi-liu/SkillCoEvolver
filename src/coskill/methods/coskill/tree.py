@@ -16,12 +16,6 @@ class SkillNode:
     instruction: str
     node_id: str = field(default_factory=lambda: uuid4().hex[:12])
     children: list["SkillNode"] = field(default_factory=list)
-    uses: int = 0
-    successes: int = 0
-
-    @property
-    def success_rate(self) -> float:
-        return self.successes / self.uses if self.uses else 0.0
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
@@ -31,6 +25,10 @@ class SkillNode:
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "SkillNode":
         value = dict(value)
+        # Ignore counters written by databases created before lifecycle
+        # tracking was removed.
+        value.pop("uses", None)
+        value.pop("successes", None)
         value["children"] = [cls.from_dict(child) for child in value.get("children", [])]
         return cls(**value)
 

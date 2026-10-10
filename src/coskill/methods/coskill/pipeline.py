@@ -70,7 +70,6 @@ class CoSkill(BaseSkillEvolutionFramework):
         )
         self.library = library
         self.cloud = cloud_runtime.evolver
-        self._borrowed_from = cloud_runtime.borrowed_from
 
     @property
     def framework_name(self) -> str:

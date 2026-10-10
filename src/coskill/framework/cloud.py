@@ -20,8 +20,6 @@ class FlatSkill:
     goal: str
     instruction: str
     revision: int = 0
-    uses: int = 0
-    successes: int = 0
 
     def guidance(self, *, max_depth: int | None = None) -> str:
         del max_depth
@@ -34,8 +32,6 @@ class FlatSkill:
             "goal": self.goal,
             "instruction": self.instruction,
             "revision": self.revision,
-            "uses": self.uses,
-            "successes": self.successes,
         }
 
     @classmethod
@@ -45,8 +41,6 @@ class FlatSkill:
             goal=str(value["goal"]),
             instruction=str(value["instruction"]),
             revision=int(value.get("revision", 0)),
-            uses=int(value.get("uses", 0)),
-            successes=int(value.get("successes", 0)),
         )
 
 
@@ -89,21 +83,6 @@ class BaseCloudRuntime:
         if not isinstance(skill, FlatSkill):
             raise TypeError("default cloud registry expects FlatSkill")
         self._registry[skill.task_type] = skill
-
-    def is_skill_discarded(self, task_type: str) -> bool:
-        del task_type
-        return False
-
-    def record_skill_use(
-        self,
-        skill: SkillArtifact,
-        task: Task,
-        trajectory: Trajectory,
-    ) -> None:
-        del task
-        if isinstance(skill, FlatSkill):
-            skill.uses += 1
-            skill.successes += int(trajectory.success)
 
     def compile_evidence(
         self,

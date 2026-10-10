@@ -131,15 +131,6 @@ class CloudRuntime(Protocol):
 
     def commit_skill(self, skill: SkillArtifact) -> None: ...
 
-    def is_skill_discarded(self, task_type: str) -> bool: ...
-
-    def record_skill_use(
-        self,
-        skill: SkillArtifact,
-        task: Task,
-        trajectory: Trajectory,
-    ) -> None: ...
-
     def compile_evidence(
         self,
         task_type: str,

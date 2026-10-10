@@ -139,7 +139,7 @@ class BaseEdgeExecutor(ABC):
 
 
 class BaseEdgeAgent(BaseEdgeExecutor):
-    """Default single-attempt action selector."""
+    """Default action selector with corrective retries."""
 
     async def _complete_action(
         self,
@@ -147,10 +147,40 @@ class BaseEdgeAgent(BaseEdgeExecutor):
         *,
         admissible_actions: Sequence[str] | None = None,
     ) -> tuple[dict[str, Any], Any]:
-        payload, response = await self.client.complete_json(messages)
-        if not self._resolved_action(payload, admissible_actions):
-            raise LLMError("Device model returned an invalid action")
-        return payload, response
+        total_usage = TokenUsage()
+        last_payload: dict[str, Any] = {}
+        for attempt in range(self.action_retries + 1):
+            attempt_messages = messages
+            if attempt:
+                if admissible_actions is not None:
+                    valid_labels = ", ".join(
+                        str(index) for index in range(len(admissible_actions))
+                    )
+                    correction = (
+                        f"Your previous response {last_payload!r} did not copy a valid "
+                        f"menu label. The only valid labels are [{valid_labels}]. "
+                        "Copy one integer printed before an action; do not count the "
+                        "actions yourself. Return only "
+                        '{"action_index": <one listed integer>}. '
+                    )
+                else:
+                    correction = (
+                        f"Your previous response {last_payload!r} did not contain exactly "
+                        "one usable action. Return only "
+                        '{"action": "one non-empty environment action"}.'
+                    )
+                attempt_messages = [*messages, Message("user", correction)]
+            payload, response = await self.client.complete_json(attempt_messages)
+            last_payload = payload
+            total_usage = total_usage + response.usage
+            if self._resolved_action(payload, admissible_actions):
+                response.usage = total_usage
+                return payload, response
+        raise LLMError(
+            "Device model returned an invalid action after "
+            f"{self.action_retries} retries; payload={last_payload!r}; "
+            f"admissible_count={len(admissible_actions) if admissible_actions is not None else 'n/a'}"
+        )
 
 
 class FailureRateTrajectoryPool:

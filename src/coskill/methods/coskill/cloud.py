@@ -303,7 +303,6 @@ class CoSkillCloud(BaseCloudRuntime):
             observation_limit=observation_limit,
             max_operations=max_operations,
         )
-        self.borrowed_from: dict[str, str] = {}
 
     def retrieve_skill(self, task: Task) -> ProgressiveSkillTree:
         reusable_goal = task.skill_template or task.goal
@@ -316,7 +315,6 @@ class CoSkillCloud(BaseCloudRuntime):
             tree.goal = reusable_goal
             tree.root.instruction = reusable_goal
             self.commit_skill(tree)
-            self.borrowed_from[task.task_type] = entry.task_type
             return tree
         tree = ProgressiveSkillTree(task.task_type, reusable_goal)
         self.commit_skill(tree)
@@ -330,31 +328,6 @@ class CoSkillCloud(BaseCloudRuntime):
         if not isinstance(skill, ProgressiveSkillTree):
             raise TypeError("CoSkill cloud registry expects ProgressiveSkillTree")
         self.library.save(skill)
-
-    def is_skill_discarded(self, task_type: str) -> bool:
-        entry = self.library.get(task_type, include_discarded=True)
-        return entry is not None and entry.state == "Discarded"
-
-    def record_skill_use(
-        self,
-        skill: SkillArtifact,
-        task: Task,
-        trajectory: Trajectory,
-    ) -> None:
-        if not isinstance(skill, ProgressiveSkillTree):
-            raise TypeError("CoSkill usage tracking expects ProgressiveSkillTree")
-        self.library.record_use(
-            skill.task_type,
-            trajectory.success,
-            observed_task_type=task.task_type,
-        )
-        source_task_type = self.borrowed_from.get(task.task_type)
-        if source_task_type is not None:
-            self.library.record_use(
-                source_task_type,
-                trajectory.success,
-                observed_task_type=task.task_type,
-            )
 
     def compile_evidence(
         self, task_type: str, trajectories: list[Trajectory]
