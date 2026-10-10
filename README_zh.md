@@ -63,7 +63,7 @@ from coskill.methods.coskill import EdgeAgent, CloudSkillEvolver
 
 ### 算法选择
 
-两个基准命令都支持 `--alg`。省略该参数（或传入空字符串）时运行 `BaseSkillEvolutionFramework`；传入 `--alg coskill` 时运行 CoSkill 专用实现。`--db` 选项仅供 CoSkill 使用。
+两个基准命令都支持 `--alg`。省略该参数（或传入空字符串）时运行 `BaseSkillEvolutionFramework`；传入 `--alg coskill` 时运行 CoSkill 专用实现。`--skill-library` 选项仅供 CoSkill 使用。
 
 ## 在 ALFWorld 上运行
 
@@ -90,7 +90,7 @@ export COSKILL_CLOUD_MODEL=...
 
 ```bash
 coskill alfworld --alg coskill --split train --episodes 100 \
-  --db runs/alfworld-skills.db \
+  --skill-library runs/alfworld-skills.json \
   --output runs/train.jsonl \
   --artifacts-dir runs/train-artifacts
 ```
@@ -100,12 +100,13 @@ coskill alfworld --alg coskill --split train --episodes 100 \
 - `trajectories.jsonl`：完整轨迹，包括状态、动作和观测。
 - `skill_trees.jsonl`：按时间顺序保存的技能树快照。
 - `skills/<task_type>.json`：每种任务类型最新的可读技能树。
+- `skills/<task_type>.md`：每种任务类型最新生成的 Markdown 技能文档。
 
 在不继续演化的情况下评估已持久化的技能：
 
 ```bash
 coskill alfworld --alg coskill --split eval_out_of_distribution --episodes 100 \
-  --db runs/alfworld-skills.db \
+  --skill-library runs/alfworld-skills.json \
   --output runs/eval.jsonl \
   --no-evolution
 ```
@@ -118,20 +119,20 @@ SearchQA 集成从本地 JSON 或 JSONL 文件读取数据，不会额外引入�
 coskill searchqa --alg coskill --data data/searchqa.json \
   --split train \
   --episodes 100 \
-  --db runs/searchqa-skills.db \
+  --skill-library runs/searchqa-skills.json \
   --output runs/searchqa-train.jsonl \
   --artifacts-dir runs/searchqa-artifacts
 ```
 
 每个问题都是一个单步 episode：边缘模型接收问题和最多 50 条检索片段，然后将最短的最终答案作为开放环境动作返回。运行结果会报告归一化 exact match 和 token F1。评估器会保留标准答案，但不会将其放入模型提示词或技能演化轨迹中。使用 `--max-snippets` 和 `--max-context-chars` 可以限制提示词上下文；使用 `--shuffle --seed 42` 可以进行确定性采样。
 
-对于重复的 Look 任务实验，每轮使用 20 条训练轨迹，并在每 20 条轨迹之后更新技能。默认运行 5 轮；所有轮次复用同一个技能数据库：
+对于重复的 Look 任务实验，每轮使用 20 条训练轨迹，并在每 20 条轨迹之后更新技能。默认运行 5 轮；所有轮次复用同一个 JSON 技能库：
 
 ```bash
 scripts/remote_look_sweep.sh PROJECT_DIR ALFWORLD_DATA 5 look_train_sweep 20 18 CONFIG_PATH
 ```
 
-因此，每一轮都会先进行一次固定规模的技能更新，再在包含 18 个任务的 `valid_unseen` Look 测试集上评估更新后的技能。测试结果会写入 `runs/<run_name>_eval_round<N>.jsonl`，并在主日志中以 `TEST_SUMMARY` 的形式汇总。评估会使用数据库副本，因此测试阶段的使用统计不会影响下一轮训练。
+因此，每一轮都会先进行一次固定规模的技能更新，再在包含 18 个任务的 `valid_unseen` Look 测试集上评估更新后的技能。测试结果会写入 `runs/<run_name>_eval_round<N>.jsonl`，并在主日志中以 `TEST_SUMMARY` 的形式汇总。评估会使用技能库副本，因此测试阶段的使用统计不会影响下一轮训练。
 
 如需依次在后台运行全部六类 ALFWorld 任务，请使用：
 
@@ -143,5 +144,5 @@ nohup bash scripts/remote_all_task_sweeps.sh \
   > /home/liuboyi/CoSkillEvo-Code/runs/alfworld_all_tasks_launcher.log 2>&1 &
 ```
 
-批处理脚本会为 Pick、Look、Clean、Heat、Cool 和 Pick-2 分别创建独立的数据库和日志；如果任意任务类型失败，脚本会停止。
+批处理脚本会为 Pick、Look、Clean、Heat、Cool 和 Pick-2 分别创建独立的 JSON 技能库和日志；如果任意任务类型失败，脚本会停止。
 

@@ -25,7 +25,7 @@ class SkillNode:
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "SkillNode":
         value = dict(value)
-        # Ignore counters written by databases created before lifecycle
+        # Ignore counters written by older stores before lifecycle
         # tracking was removed.
         value.pop("uses", None)
         value.pop("successes", None)
@@ -120,6 +120,28 @@ class ProgressiveSkillTree:
             )
         return "\n".join(lines)
 
+    def to_markdown(self) -> str:
+        """Render the generated skill tree as a readable Markdown document."""
+        lines = [
+            f"# Skill: {self.task_type}",
+            "",
+            f"- **Revision:** {self.revision}",
+            f"- **Goal:** {self.goal}",
+            "",
+            "## Skill tree",
+            "",
+        ]
+
+        for node, level in self.walk():
+            indent = "  " * level
+            title = _markdown_text(node.title)
+            instruction = _markdown_text(node.instruction)
+            lines.append(f"{indent}- **{title}** (`{node.node_id}`)")
+            lines.append(f"{indent}  - Instruction: {instruction}")
+
+        lines.append("")
+        return "\n".join(lines)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "task_type": self.task_type,
@@ -144,3 +166,8 @@ class ProgressiveSkillTree:
     @classmethod
     def from_json(cls, value: str) -> "ProgressiveSkillTree":
         return cls.from_dict(json.loads(value))
+
+
+def _markdown_text(value: str) -> str:
+    """Keep generated tree entries on one readable Markdown list line."""
+    return " ".join(str(value).split())

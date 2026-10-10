@@ -5,7 +5,6 @@ __pycache__/
 .venv/
 .conda/
 .env
-coskill.db
 **/.DS_Store
 .vscode
 runs/

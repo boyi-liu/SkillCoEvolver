@@ -84,7 +84,7 @@ async def _alfworld(args: argparse.Namespace) -> None:
                 system: SkillEvolutionFramework = CoSkill(
                     device_client=device,
                     cloud_client=cloud,
-                    library=resources.enter_context(SkillLibrary(args.db)),
+                    library=resources.enter_context(SkillLibrary(args.skill_library)),
                     config=_coskill_config(args),
                     max_steps=global_config.max_steps,
                     enable_evolution=global_config.enable_evolution,
@@ -159,7 +159,7 @@ async def _searchqa(args: argparse.Namespace) -> None:
             system = CoSkill(
                 device_client=device,
                 cloud_client=cloud,
-                library=resources.enter_context(SkillLibrary(args.db)),
+                library=resources.enter_context(SkillLibrary(args.skill_library)),
                 config=_coskill_config(args),
                 max_steps=global_config.max_steps,
                 enable_evolution=global_config.enable_evolution,
@@ -233,7 +233,9 @@ def _add_coskill_arguments(parser: argparse.ArgumentParser) -> None:
 
     group = parser.add_argument_group("CoSkill options")
     group.add_argument(
-        "--db", default="coskill.db", help="persistent skill database path"
+        "--skill-library",
+        default="coskill.json",
+        help="persistent JSON skill library path",
     )
     group.add_argument(
         "--action-retries",

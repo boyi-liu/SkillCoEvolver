@@ -21,6 +21,9 @@ class SerializableSkill(Protocol):
     def to_dict(self) -> dict[str, Any]:
         """Serialize this skill into a JSON-compatible mapping."""
 
+    def to_markdown(self) -> str:
+        """Render this skill as a human-readable Markdown document."""
+
 
 class RunArtifactRecorder:
     """Persist trajectories and skill-tree snapshots as a run progresses."""
@@ -90,8 +93,19 @@ class RunArtifactRecorder:
         target = self.latest_skills / filename
         temporary = target.with_name(f".{filename}.tmp")
         payload = json.dumps(tree.to_dict(), ensure_ascii=False, indent=2) + "\n"
+        self._atomic_write(target, temporary, payload)
+
+        markdown_filename = f"{self._safe_name(tree.task_type)}.md"
+        markdown_target = self.latest_skills / markdown_filename
+        markdown_temporary = markdown_target.with_name(f".{markdown_filename}.tmp")
+        self._atomic_write(markdown_target, markdown_temporary, tree.to_markdown())
+
+    @staticmethod
+    def _atomic_write(target: Path, temporary: Path, payload: str) -> None:
         with temporary.open("w", encoding="utf-8") as stream:
             stream.write(payload)
+            if not payload.endswith("\n"):
+                stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
         temporary.replace(target)

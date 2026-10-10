@@ -25,6 +25,22 @@ class FlatSkill:
         del max_depth
         return self.instruction
 
+    def to_markdown(self) -> str:
+        """Render the flat skill as a portable Markdown document."""
+        return "\n".join(
+            [
+                f"# Skill: {self.task_type}",
+                "",
+                f"- **Revision:** {self.revision}",
+                f"- **Goal:** {self.goal}",
+                "",
+                "## Instruction",
+                "",
+                self.instruction,
+                "",
+            ]
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "kind": "flat",

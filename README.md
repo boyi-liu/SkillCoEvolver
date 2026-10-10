@@ -79,7 +79,7 @@ applications.
 
 Both benchmark commands accept `--alg`. Omitting it (or passing an empty
 string) runs `BaseSkillEvolutionFramework`; passing `--alg coskill` runs the
-CoSkill specialization. The `--db` option is used only by CoSkill.
+CoSkill specialization. The `--skill-library` option is used only by CoSkill.
 
 ## Run on ALFWorld
 
@@ -106,7 +106,7 @@ Evolve skills on the training split:
 
 ```bash
 coskill alfworld --alg coskill --split train --episodes 100 \
-  --db runs/alfworld-skills.db \
+  --skill-library runs/alfworld-skills.json \
   --output runs/train.jsonl \
   --artifacts-dir runs/train-artifacts
 ```
@@ -116,12 +116,13 @@ When `--artifacts-dir` is set, artifacts are flushed after every episode:
 - `trajectories.jsonl`: complete trajectories, including states, actions, and observations.
 - `skill_trees.jsonl`: chronological skill-tree snapshots.
 - `skills/<task_type>.json`: the latest readable tree for each task type.
+- `skills/<task_type>.md`: the latest generated skill rendered as Markdown.
 
 Evaluate the persisted skills without further evolution:
 
 ```bash
 coskill alfworld --alg coskill --split eval_out_of_distribution --episodes 100 \
-  --db runs/alfworld-skills.db \
+  --skill-library runs/alfworld-skills.json \
   --output runs/eval.jsonl \
   --no-evolution
 ```
@@ -138,7 +139,7 @@ of split names to example lists.
 coskill searchqa --alg coskill --data data/searchqa.json \
   --split train \
   --episodes 100 \
-  --db runs/searchqa-skills.db \
+  --skill-library runs/searchqa-skills.json \
   --output runs/searchqa-train.jsonl \
   --artifacts-dir runs/searchqa-artifacts
 ```
@@ -152,7 +153,7 @@ bound prompt context, and `--shuffle --seed 42` for deterministic sampling.
 
 For the repeated Look-task experiment, use 20 training trajectories per round
 and update the skill after every 20 trajectories. The default is 5 rounds; the
-same skill database is reused across rounds:
+the same JSON skill library is reused across rounds:
 
 ```bash
 scripts/remote_look_sweep.sh PROJECT_DIR ALFWORLD_DATA 5 look_train_sweep 20 18 CONFIG_PATH
@@ -161,7 +162,7 @@ scripts/remote_look_sweep.sh PROJECT_DIR ALFWORLD_DATA 5 look_train_sweep 20 18 
 Each round therefore performs one fixed-size skill update, then evaluates the
 updated skill on the 18-task `valid_unseen` Look test split. Test results are
 written to `runs/<run_name>_eval_round<N>.jsonl` and summarized as
-`TEST_SUMMARY` in the main log. The evaluation uses a copied database so test
+`TEST_SUMMARY` in the main log. The evaluation uses a copied skill library so test
 usage statistics do not affect the next training round.
 
 To run all six ALFWorld task families sequentially in the background, use:
