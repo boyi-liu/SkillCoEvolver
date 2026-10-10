@@ -1,13 +1,19 @@
-"""Command-line interface for launching Co-Skill benchmark runs."""
+"""Command-line interface for launching skill-evolution benchmark runs."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
 import random
+from contextlib import ExitStack
 from dataclasses import dataclass
 
-from .framework import TriggerConfig
+from .framework import (
+    BaseSkillEvolutionFramework,
+    SkillEvolutionConfig,
+    SkillEvolutionFramework,
+    TriggerConfig,
+)
 from .llm import OpenAICompatibleClient
 from .methods.coskill import CoSkill, CoSkillConfig, SkillLibrary
 
@@ -21,19 +27,37 @@ class GlobalRunConfig:
     artifact_dir: str | None
 
 
-def _coskill_config(args: argparse.Namespace) -> CoSkillConfig:
-    """Build method-specific configuration shared by benchmark commands."""
+def _base_config(args: argparse.Namespace) -> SkillEvolutionConfig:
+    """Build controls shared by the default and CoSkill runtimes."""
 
-    return CoSkillConfig(
-        action_retries=args.action_retries,
+    return SkillEvolutionConfig(
         trigger=TriggerConfig(
             recent_window=args.trigger_window,
             failure_rate_threshold=args.failure_rate_threshold,
             fixed_batch_size=args.update_every,
         ),
+    )
+
+
+def _coskill_config(args: argparse.Namespace) -> CoSkillConfig:
+    """Build CoSkill-specific configuration shared by benchmark commands."""
+
+    base = _base_config(args)
+    return CoSkillConfig(
+        action_retries=args.action_retries,
+        trigger=base.trigger,
         trie_observation_limit=args.trie_observation_limit,
         max_evolution_operations=args.max_evolution_operations,
     )
+
+
+def _algorithm(value: str | None) -> str:
+    """Normalize and validate a command-line algorithm selector."""
+
+    algorithm = (value or "").strip().casefold()
+    if algorithm not in {"", "coskill"}:
+        raise argparse.ArgumentTypeError("alg must be empty or 'coskill'")
+    return algorithm
 
 
 async def _alfworld(args: argparse.Namespace) -> None:
@@ -55,16 +79,26 @@ async def _alfworld(args: argparse.Namespace) -> None:
         data_dir=args.data_dir,
     )
     try:
-        with SkillLibrary(args.db) as library:
-            system = CoSkill(
-                device_client=device,
-                cloud_client=cloud,
-                library=library,
-                config=_coskill_config(args),
-                max_steps=global_config.max_steps,
-                enable_evolution=global_config.enable_evolution,
-                artifact_dir=global_config.artifact_dir,
-            )
+        with ExitStack() as resources:
+            if args.alg == "coskill":
+                system: SkillEvolutionFramework = CoSkill(
+                    device_client=device,
+                    cloud_client=cloud,
+                    library=resources.enter_context(SkillLibrary(args.db)),
+                    config=_coskill_config(args),
+                    max_steps=global_config.max_steps,
+                    enable_evolution=global_config.enable_evolution,
+                    artifact_dir=global_config.artifact_dir,
+                )
+            else:
+                system = BaseSkillEvolutionFramework(
+                    device_client=device,
+                    cloud_client=cloud,
+                    config=_base_config(args),
+                    max_steps=global_config.max_steps,
+                    enable_evolution=global_config.enable_evolution,
+                    artifact_dir=global_config.artifact_dir,
+                )
             summary = await run_alfworld(
                 system,
                 environment,
@@ -120,16 +154,26 @@ async def _searchqa(args: argparse.Namespace) -> None:
         max_snippets=args.max_snippets,
         max_context_chars=args.max_context_chars,
     )
-    with SkillLibrary(args.db) as library:
-        system = CoSkill(
-            device_client=device,
-            cloud_client=cloud,
-            library=library,
-            config=_coskill_config(args),
-            max_steps=global_config.max_steps,
-            enable_evolution=global_config.enable_evolution,
-            artifact_dir=global_config.artifact_dir,
-        )
+    with ExitStack() as resources:
+        if args.alg == "coskill":
+            system = CoSkill(
+                device_client=device,
+                cloud_client=cloud,
+                library=resources.enter_context(SkillLibrary(args.db)),
+                config=_coskill_config(args),
+                max_steps=global_config.max_steps,
+                enable_evolution=global_config.enable_evolution,
+                artifact_dir=global_config.artifact_dir,
+            )
+        else:
+            system = BaseSkillEvolutionFramework(
+                device_client=device,
+                cloud_client=cloud,
+                config=_base_config(args),
+                max_steps=global_config.max_steps,
+                enable_evolution=global_config.enable_evolution,
+                artifact_dir=global_config.artifact_dir,
+            )
         summary = await run_searchqa(
             system,
             environment,
@@ -153,26 +197,28 @@ async def _searchqa(args: argparse.Namespace) -> None:
         )
 
 
-def _add_coskill_arguments(parser: argparse.ArgumentParser) -> None:
-    """Add Co-Skill-specific hyperparameters to a benchmark command."""
+def _add_algorithm_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add method selection and shared trigger arguments."""
 
     parser.add_argument(
-        "--action-retries",
-        type=int,
-        default=2,
-        help="Co-Skill retries after an invalid device action",
+        "--alg",
+        type=_algorithm,
+        default="",
+        metavar="coskill",
+        help="algorithm to run; omit or pass an empty value for the default method",
     )
+
     parser.add_argument(
         "--trigger-window",
         type=int,
         default=16,
-        help="Co-Skill recent window used by the failure-rate trigger",
+        help="recent window used by the failure-rate evolution trigger",
     )
     parser.add_argument(
         "--failure-rate-threshold",
         type=float,
         default=0.60,
-        help="Co-Skill failure rate that triggers cloud evolution",
+        help="failure rate that triggers cloud evolution",
     )
     parser.add_argument(
         "--update-every",
@@ -180,13 +226,28 @@ def _add_coskill_arguments(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="trigger a skill update after this many new trajectories per task type",
     )
-    parser.add_argument(
+
+
+def _add_coskill_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add hyperparameters and resources owned specifically by CoSkill."""
+
+    group = parser.add_argument_group("CoSkill options")
+    group.add_argument(
+        "--db", default="coskill.db", help="persistent skill database path"
+    )
+    group.add_argument(
+        "--action-retries",
+        type=int,
+        default=2,
+        help="corrective retries after an invalid device action",
+    )
+    group.add_argument(
         "--trie-observation-limit",
         type=int,
         default=300,
         help="maximum observation characters rendered per trie node",
     )
-    parser.add_argument(
+    group.add_argument(
         "--max-evolution-operations",
         type=int,
         choices=range(1, 4),
@@ -208,63 +269,73 @@ def _add_evolution_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def main() -> None:
-    """Parse command-line arguments and dispatch to the selected command."""
-    parser = argparse.ArgumentParser(description="Run the Co-Skill reference prototype")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    alfworld = subparsers.add_parser(
-        "alfworld", help="run Co-Skill on the official text-only ALFWorld environment"
-    )
-    alfworld.add_argument("--episodes", type=int, default=100)
-    alfworld.add_argument(
+def _add_alfworld_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add arguments owned by the ALFWorld benchmark command."""
+
+    parser.add_argument("--episodes", type=int, default=100)
+    parser.add_argument(
         "--split",
         choices=["train", "eval_in_distribution", "eval_out_of_distribution"],
         default="train",
     )
-    alfworld.add_argument("--config", help="optional ALFWorld YAML config")
-    alfworld.add_argument("--data-dir", help="ALFWorld data directory")
-    alfworld.add_argument("--db", default="coskill.db")
-    alfworld.add_argument(
+    parser.add_argument("--config", help="optional ALFWorld YAML config")
+    parser.add_argument("--data-dir", help="ALFWorld data directory")
+    parser.add_argument(
         "--artifacts-dir",
-        help=(
-            "save trajectories.jsonl and skill-tree snapshots under this directory"
-        ),
+        help="save trajectories.jsonl and skill snapshots under this directory",
     )
-    alfworld.add_argument("--output", help="write per-episode JSONL records")
-    alfworld.add_argument("--max-steps", type=int, default=40)
-    alfworld.add_argument("--seed", type=int, default=42)
-    _add_coskill_arguments(alfworld)
-    _add_evolution_arguments(alfworld)
+    parser.add_argument("--output", help="write per-episode JSONL records")
+    parser.add_argument("--max-steps", type=int, default=40)
+    parser.add_argument("--seed", type=int, default=42)
+    _add_algorithm_arguments(parser)
+    _add_coskill_arguments(parser)
+    _add_evolution_arguments(parser)
 
-    searchqa = subparsers.add_parser(
-        "searchqa", help="run Co-Skill on a local SearchQA JSON or JSONL dataset"
-    )
-    searchqa.add_argument("--data", required=True, help="SearchQA JSON or JSONL file")
-    searchqa.add_argument(
+
+def _add_searchqa_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add arguments owned by the SearchQA benchmark command."""
+
+    parser.add_argument("--data", required=True, help="SearchQA JSON or JSONL file")
+    parser.add_argument(
         "--split",
         default="train",
         help="split key for JSON files containing train/validation/test mappings",
     )
-    searchqa.add_argument("--episodes", type=int, default=100)
-    searchqa.add_argument("--db", default="coskill.db")
-    searchqa.add_argument("--artifacts-dir", help="save trajectory and skill artifacts")
-    searchqa.add_argument("--output", help="write per-example JSONL records")
-    searchqa.add_argument("--seed", type=int, default=42)
-    searchqa.add_argument("--shuffle", action="store_true")
-    searchqa.add_argument(
+    parser.add_argument("--episodes", type=int, default=100)
+    parser.add_argument("--artifacts-dir", help="save trajectory and skill artifacts")
+    parser.add_argument("--output", help="write per-example JSONL records")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--shuffle", action="store_true")
+    parser.add_argument(
         "--max-snippets",
         type=int,
         default=50,
         help="maximum retrieved snippets included in each episode",
     )
-    searchqa.add_argument(
+    parser.add_argument(
         "--max-context-chars",
         type=int,
         default=16000,
         help="maximum total snippet characters included in each episode",
     )
-    _add_coskill_arguments(searchqa)
-    _add_evolution_arguments(searchqa)
+    _add_algorithm_arguments(parser)
+    _add_coskill_arguments(parser)
+    _add_evolution_arguments(parser)
+
+
+def main() -> None:
+    """Parse command-line arguments and dispatch to the selected command."""
+    parser = argparse.ArgumentParser(description="Run skill-evolution benchmarks")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    alfworld = subparsers.add_parser(
+        "alfworld", help="run a selected method on the text-only ALFWorld environment"
+    )
+    _add_alfworld_arguments(alfworld)
+
+    searchqa = subparsers.add_parser(
+        "searchqa", help="run a selected method on a local SearchQA dataset"
+    )
+    _add_searchqa_arguments(searchqa)
     args = parser.parse_args()
     if args.command == "alfworld":
         asyncio.run(_alfworld(args))

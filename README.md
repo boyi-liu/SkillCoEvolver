@@ -1,7 +1,4 @@
-# Co-Skill Evolution Pipeline
-
-Reference implementation of the collaborative skill-evolution pipeline from
-**Co-Skill: A Collaborative Communication Framework for Skill Evolution**.
+# SkillCoEvolver
 
 ## Pipeline
 
@@ -72,6 +69,12 @@ Use method-scoped imports when extending the implementation, for example
 package-level public API (`from coskill import ...`) remains available for
 applications.
 
+### Algorithm selection
+
+Both benchmark commands accept `--alg`. Omitting it (or passing an empty
+string) runs `BaseSkillEvolutionFramework`; passing `--alg coskill` runs the
+CoSkill specialization. The `--db` option is used only by CoSkill.
+
 ## Run on ALFWorld
 
 ```bash
@@ -96,7 +99,7 @@ export COSKILL_CLOUD_MODEL=...
 Evolve skills on the training split:
 
 ```bash
-coskill alfworld --split train --episodes 100 \
+coskill alfworld --alg coskill --split train --episodes 100 \
   --db runs/alfworld-skills.db \
   --output runs/train.jsonl \
   --artifacts-dir runs/train-artifacts
@@ -111,7 +114,7 @@ When `--artifacts-dir` is set, artifacts are flushed after every episode:
 Evaluate the persisted skills without further evolution:
 
 ```bash
-coskill alfworld --split eval_out_of_distribution --episodes 100 \
+coskill alfworld --alg coskill --split eval_out_of_distribution --episodes 100 \
   --db runs/alfworld-skills.db \
   --output runs/eval.jsonl \
   --no-evolution
@@ -126,7 +129,7 @@ runtime dependency. It accepts the original fields (`question`, `answer`, and
 of split names to example lists.
 
 ```bash
-coskill searchqa --data data/searchqa.json \
+coskill searchqa --alg coskill --data data/searchqa.json \
   --split train \
   --episodes 100 \
   --db runs/searchqa-skills.db \
@@ -154,6 +157,19 @@ updated skill on the 18-task `valid_unseen` Look test split. Test results are
 written to `runs/<run_name>_eval_round<N>.jsonl` and summarized as
 `TEST_SUMMARY` in the main log. The evaluation uses a copied database so test
 usage statistics do not affect the next training round.
+
+To run all six ALFWorld task families sequentially in the background, use:
+
+```bash
+nohup bash scripts/remote_all_task_sweeps.sh \
+  /home/liuboyi/CoSkillEvo-Code \
+  /home/liuboyi/CoSkillEvo-Code/data/alfworld \
+  5 20 alfworld_all_tasks \
+  > /home/liuboyi/CoSkillEvo-Code/runs/alfworld_all_tasks_launcher.log 2>&1 &
+```
+
+The batch script creates independent DBs and logs for Pick, Look, Clean, Heat,
+Cool, and Pick-2, and stops if any task family fails.
 
 ## Test
 

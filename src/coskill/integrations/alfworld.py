@@ -11,8 +11,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from ..framework import Environment, StepResult
-from ..methods.coskill import CoSkill
+from ..framework import Environment, SkillEvolutionFramework, StepResult
 from ..utils import EpisodeResult, Task
 
 
@@ -288,7 +287,7 @@ class ALFWorldEnvironment(Environment):
 
     async def reset(self, task: Task) -> str:
         if self._prepared_task is None:
-            raise RuntimeError("Call prepare_episode() before CoSkill.run_episode().")
+            raise RuntimeError("Call prepare_episode() before system.run_episode().")
         if task.task_id != self._prepared_task.task_id:
             raise ValueError("Task does not match the prepared ALFWorld episode")
         return self._render_observation()
@@ -395,7 +394,7 @@ class ALFWorldRunSummary:
 
 
 async def run_alfworld(
-    system: CoSkill,
+    system: SkillEvolutionFramework,
     environment: ALFWorldEnvironment,
     *,
     episodes: int,
